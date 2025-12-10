@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Визуализация обработки документов</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .container {
+            display: flex;
+            height: 100vh;
+            padding: 20px;
+            gap: 20px;
+        }
+        
+        #graph-container {
+            flex: 1;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+            position: relative;
+        }
+        
+        #node-info {
+            width: 300px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+            overflow-y: auto;
+        }
+        
+        .info-header {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #eee;
+            color: #333;
+        }
+        
+        .info-item {
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+            border-left: 4px solid #4CAF50;
+        }
+        
+        .info-label {
+            font-weight: bold;
+            color: #666;
+            font-size: 12px;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+        
+        .info-value {
+            color: #333;
+            font-size: 14px;
+            word-break: break-word;
+        }
+        
+        .no-selection {
+            color: #999;
+            font-style: italic;
+            text-align: center;
+            margin-top: 50px;
+        }
+        
+        .stage-label {
+            position: absolute;
+            right: 10px;
+            background-color: rgba(255,255,255,0.9);
+            padding: 5px 10px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background-color: white;
+            padding: 10px;
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+        
+        .control-btn {
+            padding: 5px 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 5px;
+            font-size: 12px;
+        }
+        
+        .control-btn:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="graph-container">
+            <div class="controls">
+                <button class="control-btn" onclick="fitGraph()">Подогнать</button>
+                <button class="control-btn" onclick="resetView()">Сбросить</button>
+            </div>
+        </div>
+        <div id="node-info">
+            <div class="info-header">Информация о документе</div>
+            <div id="no-selection" class="no-selection">
+                Выберите документ для просмотра информации
+            </div>
+            <div id="document-info" style="display: none;">
+                <!-- Информация будет загружаться динамически -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let network = null;
+        let allNodes = null;
+        let allEdges = null;
+        
+        // Инициализация графа при загрузке страницы
+        document.addEventListener('DOMContentLoaded', function() {
+            initGraph();
+        });
+        
+        function initGraph() {
+            // Получаем данные графа с сервера
+            fetch('/api/get_graph_data/')
+                .then(response => response.json())
+                .then(data => {
+                    createNetwork(data);
+                    createStageLabels(data.stages);
+                })
+                .catch(error => {
+                    console.error('Error loading graph data:', error);
+                    // Для демонстрации создаем тестовые данные
+                    createNetwork(getTestData());
+                });
+        }
+        
+        function createNetwork(graphData) {
+            const container = document.getElementById('graph-container');
+            
+            // Создаем узлы и ребра для Vis.js
+            const nodes = new vis.DataSet(graphData.nodes);
+            const edges = new vis.DataSet(graphData.edges);
+            
+            allNodes = nodes;
+            allEdges = edges;
+            
+            // Конфигурация графа
+            const options = {
+                layout: {
+                    hierarchical: {
+                        enabled: true,
+                        direction: 'UD', // Up-Down вертикальное расположение
+                        sortMethod: 'directed',
+                        levelSeparation: 150,
+                        nodeSpacing: 100,
+                        treeSpacing: 200,
+                        shakeTowards: 'roots'
+                    }
+                },
+                physics: {
+                    enabled: false,
+                    hierarchicalRepulsion: {
+                        avoidOverlap: 1
+                    }
+                },
+                nodes: {
+                    shape: 'circle',
+                    size: 25,
+                    borderWidth: 2,
+                    borderWidthSelected: 4,
+                    shadow: true,
+                    font: {
+                        size: 12,
+                        color: '#333'
+                    }
+                },
+                edges: {
+                    width: 2,
+                    smooth: {
+                        type: 'cubicBezier',
+                        roundness: 0.4
+                    }
+                },
+                interaction: {
+                    hover: true,
+                    tooltipDelay: 200,
+                    zoomView: true,
+                    dragView: true
+                }
+            };
+            
+            // Создаем граф
+            const data = { nodes: nodes, edges: edges };
+            network = new vis.Network(container, data, options);
+            
+            // Обработчик выбора узла
+            network.on('click', function(params) {
+                if (params.nodes.length > 0) {
+                    const nodeId = params.nodes[0];
+                    const node = nodes.get(nodeId);
+                    if (node) {
+                        showNodeInfo(node.data);
+                    }
+                }
+            });
+            
+            // Обработчик двойного клика по пустой области
+            network.on('doubleClick', function(params) {
+                if (params.nodes.length === 0) {
+                    hideNodeInfo();
+                }
+            });
+        }
+        
+        function createStageLabels(stages) {
+            const container = document.getElementById('graph-container');
+            
+            // Удаляем старые метки
+            const oldLabels = container.querySelectorAll('.stage-label');
+            oldLabels.forEach(label => label.remove());
+            
+            // Создаем новые метки для этапов
+            stages.forEach((stage, index) => {
+                const label = document.createElement('div');
+                label.className = 'stage-label';
+                label.textContent = `Этап ${index + 1}: ${stage}`;
+                label.style.top = `${index * 150 + 50}px`;
+                container.appendChild(label);
+            });
+        }
+        
+        function showNodeInfo(nodeData) {
+            document.getElementById('no-selection').style.display = 'none';
+            const docInfoDiv = document.getElementById('document-info');
+            docInfoDiv.style.display = 'block';
+            
+            // Форматируем информацию о документе
+            const infoHTML = `
+                <div class="info-item">
+                    <div class="info-label">ID документа</div>
+                    <div class="info-value">${nodeData.original_id}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Этап обработки</div>
+                    <div class="info-value">${nodeData.stage}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Название</div>
+                    <div class="info-value">${nodeData.name || 'Не указано'}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Категория</div>
+                    <div class="info-value">${nodeData.category || 'Не указано'}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Год</div>
+                    <div class="info-value">${nodeData.year || 'Не указано'}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Текст</div>
+                    <div class="info-value">${nodeData.text || 'Нет текста'}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Цвет</div>
+                    <div class="info-value">
+                        <span style="display:inline-block; width:20px; height:20px; background-color:${nodeData.color || '#ccc'}; margin-right:5px; border:1px solid #ddd;"></span>
+                        ${nodeData.color || 'Не указан'}
+                    </div>
+                </div>
+            `;
+            
+            docInfoDiv.innerHTML = infoHTML;
+        }
+        
+        function hideNodeInfo() {
+            document.getElementById('no-selection').style.display = 'block';
+            document.getElementById('document-info').style.display = 'none';
+        }
+        
+        function fitGraph() {
+            if (network) {
+                network.fit();
+            }
+        }
+        
+        function resetView() {
+            if (network) {
+                network.setOptions({
+                    physics: {
+                        enabled: true,
+                        stabilization: {
+                            iterations: 100
+                        }
+                    }
+                });
+                setTimeout(() => {
+                    network.setOptions({
+                        physics: false
+                    });
+                    network.fit();
+                }, 1000);
+            }
+        }
+        
+        // Тестовые данные для демонстрации
+        function getTestData() {
+            return {
+                nodes: [
+                    {id: '1', label: 'DOC001', level: 0, color: 'white', 
+                     data: {original_id: 'DOC001', stage: 'Парсинг', name: 'Входящий документ', category: 'doc', year: '2024', text: 'Тестовый документ'}},
+                    {id: '2', label: 'DOC002', level: 0, color: 'white',
+                     data: {original_id: 'DOC002', stage: 'Парсинг', name: 'Входящий документ 2', category: 'doc', year: '2024'}},
+                    {id: '3', label: 'PROC001', level: 1, color: '#FF6B6B',
+                     data: {original_id: 'PROC001', stage: 'Обработка', name: 'Обработанный документ', category: 'processed', color: '#FF6B6B', year: '2024'}},
+                    {id: '4', label: 'FINAL001', level: 2, color: '#4ECDC4',
+                     data: {original_id: 'FINAL001', stage: 'Финальный', name: 'Итоговый документ', category: 'final', color: '#4ECDC4', year: '2024'}}
+                ],
+                edges: [
+                    {id: 'e1', from: '1', to: '3', arrows: 'to'},
+                    {id: 'e2', from: '2', to: '3', arrows: 'to'},
+                    {id: 'e3', from: '3', to: '4', arrows: 'to'}
+                ],
+                stages: ['Парсинг', 'Обработка', 'Финальный']
+            };
+        }
+    </script>
+</body>
+</html>
