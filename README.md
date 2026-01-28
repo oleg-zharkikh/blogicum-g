@@ -1,3 +1,69 @@
+
+import time
+import functools
+from datetime import datetime, timedelta
+
+
+def seconds_until_next_retry(now: datetime) -> int:
+    weekday = now.weekday()  # 0 = Monday, 5 = Saturday, 6 = Sunday
+
+    # будний день и рабочее время 09:00–17:00
+    if weekday < 5 and 9 <= now.hour < 17:
+        return 30 * 60  # 30 минут
+
+    # иначе — ждать до 10:00 понедельника
+    days_ahead = (7 - weekday) % 7
+    if days_ahead == 0:
+        days_ahead = 7
+
+    next_monday = (now + timedelta(days=days_ahead)).replace(
+        hour=10, minute=0, second=0, microsecond=0
+    )
+
+    return int((next_monday - now).total_seconds())
+
+
+def retry_with_wait(max_attempts: int):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            attempt = 1
+            while True:
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    if attempt >= max_attempts:
+                        raise
+
+                    now = datetime.now()
+                    wait_seconds = seconds_until_next_retry(now)
+
+                    print(
+                        f"Попытка {attempt} не удалась: {e}. "
+                        f"Следующая попытка через {wait_seconds // 60} минут."
+                    )
+
+                    time.sleep(wait_seconds)
+                    attempt += 1
+
+        return wrapper
+    return decorator
+    
+    
+    
+    usage
+
+    
+@retry_with_wait(max_attempts=5)
+def unstable_job():
+    print("Выполняю задачу...")
+    raise RuntimeError("Временная ошибка")
+
+
+    
+
+
+
 pip install statsmodels pandas numpy matplotlib
 
 import numpy as np
