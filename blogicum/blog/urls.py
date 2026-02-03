@@ -9,6 +9,8 @@ urlpatterns = [
          views.index,
          name='index'),
 
+    path('list/', views.get_list),
+
     path('graph/', views.visualize_graph, name='visualize_graph'),
     path('api/get_graph_data/', views.get_graph_data, name='get_graph_data'),
 

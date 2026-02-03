@@ -15,6 +15,16 @@ from users.forms import EditUserForm
 from .forms import CommentForm, PostForm
 
 
+def get_list(request):
+
+    context = {}
+    posts = Post.objects.all().select_related('category')
+    for post in posts:
+        post.tags = [post.category,]
+    context['documents'] = posts
+    return render(request, 'blog/list.html', context=context)
+
+
 class PostViewSet(viewsets.ModelViewSet):
     """Endpoint для API запросов."""
     queryset = Post.objects.all()

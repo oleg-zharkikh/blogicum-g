@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}
+  Лента записей
+{% endblock %}
+{% block content %}
+<div class="list-group">
+{% for document in documents %}
+    <a href="#" class="list-group-item list-group-item-action" 
+      data-doc-id="{{ document.id }}">
+      {% for tag in document.tags %}
+      <span class="badge text-bg-primary me-2 tag-badge" 
+            data-tag-id="{{ tag.id }}" 
+            data-tag-status="{{ tag.status }}">
+        {{ tag.title | truncatechars:5 }}
+        <button type="button" class="btn-close btn-close-white tag-remove-btn" 
+                aria-label="Remove tag" 
+                data-tag-id="{{ tag.id }}"></button>
+      </span>
+      {% endfor %}
+      {{ document.title }}
+    </a>
+  {% endfor %}
+  </div>  
+</div>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const listGroup = document.querySelector('.list-group');
+    
+    // Обработка клика по бейджу (не по крестику)
+    listGroup.addEventListener('click', function(e) {
+        // Проверяем, что кликнули именно по бейджу
+        if (e.target.classList.contains('tag-badge')) {
+            e.preventDefault();
+            toggleTagStatus(e.target);
+        }
+        // Проверяем, что кликнули по крестику
+        else if (e.target.classList.contains('btn-close')) {
+            e.preventDefault();
+            e.stopPropagation(); // Предотвращаем всплытие до ссылки
+            removeTag(e.target);
+        }
+    });
+    
+    // Функция для переключения статуса тега
+    function toggleTagStatus(badge) {
+        const tagId = badge.dataset.tagId;
+        const currentStatus = badge.dataset.tagStatus;
+        const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
+        
+        // Отправляем запрос на сервер
+        fetch(`/api/tags/${tagId}/toggle-status/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({ status: newStatus })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Обновляем состояние бейджа
+                badge.dataset.tagStatus = newStatus;
+                
+                if (newStatus === 'inactive') {
+                    badge.classList.remove('text-bg-primary', 'text-bg-success', 'text-bg-warning');
+                    badge.classList.add('text-bg-secondary');
+                } else {
+                    badge.classList.remove('text-bg-secondary');
+                    badge.classList.add('text-bg-primary');
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+        });
+    }
+    
+    // Функция для удаления тега
+    function removeTag(closeBtn) {
+        const tagId = closeBtn.dataset.tagId;
+        const badge = closeBtn.closest('.tag-badge');
+        
+        // Отправляем запрос на сервер
+        fetch(`/api/tags/${tagId}/delete/`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Удаляем бейдж из DOM
+                badge.remove();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+        });
+    }
+    
+    // Вспомогательная функция для получения CSRF токена
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+});
+</script>
+{% endblock %}
