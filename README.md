@@ -1,3 +1,255 @@
+Ниже — минимальный, но практичный пример novelty detection для текстов на scikit-learn, хорошо подходящий под твой кейс:
+автор обычно пишет в узкой тематике → внезапно появляется текст “из другой области”.
+Я покажу вариант с TF-IDF + One-Class SVM, а затем кратко поясню альтернативы.
+Идея подхода
+Обучаемся только на “нормальных” текстах
+(посты про ч/б плёночную фотографию).
+Представляем тексты как векторы признаков (TF-IDF).
+Учим модель novelty detection.
+Проверяем новые посты:
+→ inlier (обычная тематика) или outlier (новизна).
+Пример: TF-IDF + One-Class SVM
+1. Данные
+Копировать код
+Python
+train_texts = [
+    "черно белая пленочная фотография kodak tri-x",
+    "проявка пленки ilford в домашних условиях",
+    "зерно пленки и контраст черно белых снимков",
+    "аналоговая фотография и химическая проявка"
+]
+
+test_texts = [
+    "печать черно белых фотографий в фотолаборатории",
+    "обработка изображений в photoshop и lightroom",
+    "цифровая ретушь и цветокоррекция"
+]
+2. Векторизация + модель
+Копировать код
+Python
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.svm import OneClassSVM
+from sklearn.pipeline import Pipeline
+Копировать код
+Python
+pipeline = Pipeline([
+    ("tfidf", TfidfVectorizer(
+        ngram_range=(1, 2),
+        min_df=1,
+        max_df=0.9
+    )),
+    ("ocsvm", OneClassSVM(
+        kernel="rbf",
+        gamma="scale",
+        nu=0.1   # ожидаемая доля "аномалий"
+    ))
+])
+3. Обучение (ТОЛЬКО на нормальной тематике)
+Копировать код
+Python
+pipeline.fit(train_texts)
+4. Проверка новых постов
+Копировать код
+Python
+predictions = pipeline.predict(test_texts)
+scores = pipeline.decision_function(test_texts)
+Копировать код
+Python
+for text, pred, score in zip(test_texts, predictions, scores):
+    label = "OK (обычная тема)" if pred == 1 else "NOVELTY (аномалия)"
+    print(f"{label:25} score={score:.3f} | {text}")
+Типичный результат:
+Копировать код
+
+OK (обычная тема)        score=0.12  | печать черно белых фотографий ...
+NOVELTY (аномалия)      score=-0.47 | обработка изображений в photoshop ...
+NOVELTY (аномалия)      score=-0.52 | цифровая ретушь и цветокоррекция
+Почему это работает
+TF-IDF фиксирует лексический профиль автора
+One-Class SVM строит границу “нормальности”
+Тексты с иным словарём (photoshop, digital, retouch) выпадают
+Полезные альтернативы
+1. Isolation Forest (часто проще в настройке)
+Копировать код
+Python
+from sklearn.ensemble import IsolationForest
+Копировать код
+Python
+IsolationForest(
+    n_estimators=200,
+    contamination=0.1,
+    random_state=42
+)
+Хорош для больших корпусов, менее чувствителен к масштабу.
+2. Topic modeling + distance
+LDA / NMF
+Сравнивать распределения тем
+Подходит, если новизна = появление новой темы, а не просто слов
+3. Embeddings (Sentence-BERT) + novelty detection
+Гораздо устойчивее к синонимам
+Лучше при небольшом количестве текстов
+Но уже не “чистый” sklearn
+Практические советы
+Обучайся на одном авторе, иначе “стиль” смешается
+Делай скользящее обучение (drift со временем)
+Анализируй decision_function, а не только ±1
+Убирай стоп-слова, цифры, имена собственные
+Если хочешь, в следующем шаге могу:
+✦ переписать пример под IsolationForest
+✦ показать вариант с SentenceTransformer
+✦ обсудить, как отличать “новую тему” от “новой под-темы”
+
+
+
+
+
+
+Ниже — практичный и “промышленный” вариант novelty detection для текстов на базе
+Sentence-BERT embeddings + алгоритм обучения без учителя.
+Это решение существенно устойчивее TF-IDF:
+не зависит от точного словаря,
+ловит семантическую новизну,
+хорошо работает на коротких постах.
+Архитектура решения
+Копировать код
+
+Текст → Sentence-BERT → dense embedding → novelty detection
+В качестве novelty detector можно использовать:
+One-Class SVM (строгая граница “нормы”)
+Isolation Forest (часто стабильнее на практике)
+Я покажу оба, но начнём с наиболее универсального.
+1. Установка зависимостей
+Копировать код
+Bash
+pip install sentence-transformers scikit-learn
+2. Данные
+Копировать код
+Python
+train_texts = [
+    "черно белая пленочная фотография kodak tri x",
+    "проявка пленки ilford и фиксаж",
+    "аналоговая фотография зерно и контраст",
+    "печать черно белых фотографий в фотолаборатории"
+]
+
+test_texts = [
+    "проявка черно белой пленки дома",
+    "обработка изображений в photoshop и lightroom",
+    "цифровая ретушь и цветокоррекция фотографий"
+]
+3. Получение эмбеддингов (Sentence-BERT)
+Копировать код
+Python
+from sentence_transformers import SentenceTransformer
+import numpy as np
+Копировать код
+Python
+model = SentenceTransformer("sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+
+X_train = model.encode(
+    train_texts,
+    normalize_embeddings=True
+)
+
+X_test = model.encode(
+    test_texts,
+    normalize_embeddings=True
+)
+Важно:
+normalize_embeddings=True → косинусная геометрия становится евклидовой
+(это сильно упрощает жизнь детекторам).
+4. Вариант A: One-Class SVM
+Обучение
+Копировать код
+Python
+from sklearn.svm import OneClassSVM
+
+ocsvm = OneClassSVM(
+    kernel="rbf",
+    gamma="scale",
+    nu=0.1
+)
+
+ocsvm.fit(X_train)
+Проверка
+Копировать код
+Python
+pred = ocsvm.predict(X_test)
+scores = ocsvm.decision_function(X_test)
+Копировать код
+Python
+for text, p, s in zip(test_texts, pred, scores):
+    label = "OK (норма)" if p == 1 else "NOVELTY"
+    print(f"{label:10} score={s:.3f} | {text}")
+5. Вариант B (часто предпочтительнее): Isolation Forest
+Копировать код
+Python
+from sklearn.ensemble import IsolationForest
+Копировать код
+Python
+iso = IsolationForest(
+    n_estimators=300,
+    contamination=0.1,
+    random_state=42
+)
+
+iso.fit(X_train)
+Копировать код
+Python
+pred = iso.predict(X_test)
+scores = iso.decision_function(X_test)
+Копировать код
+Python
+for text, p, s in zip(test_texts, pred, scores):
+    label = "OK (норма)" if p == 1 else "NOVELTY"
+    print(f"{label:10} score={s:.3f} | {text}")
+Как интерпретировать результат
+prediction = -1 → текст выпал из семантического облака
+decision_function → мера “чужеродности”
+можно задать порог вручную, а не полагаться на contamination
+Упрощённая альтернатива (часто работает отлично)
+Средняя косинусная дистанция до корпуса
+Копировать код
+Python
+from sklearn.metrics.pairwise import cosine_distances
+
+centroid = X_train.mean(axis=0)
+
+distances = cosine_distances(X_test, centroid.reshape(1, -1)).ravel()
+Копировать код
+Python
+for text, d in zip(test_texts, distances):
+    label = "NOVELTY" if d > 0.35 else "OK"
+    print(f"{label:10} dist={d:.3f} | {text}")
+✔ Прозрачно
+✔ Интерпретируемо
+✔ Отлично подходит для production-алертов
+Практические рекомендации
+Модель
+paraphrase-multilingual-MiniLM-L12-v2 — хороший баланс
+для RU-only можно взять ai-forever/sbert_large_nlu_ru
+Обучение
+50–200 “нормальных” текстов — уже достаточно
+обновляй модель по времени (topic drift)
+Детектируем ЧТО именно?
+Сценарий
+Метод
+Резко новая тема
+IsolationForest
+Постепенный сдвиг
+distance to centroid
+Жёсткий контроль тематики
+One-Class SVM
+Когда этот подход особенно хорош
+Автор → один стиль мышления
+Новизна = смена концептов, а не слов
+Короткие тексты (посты, заметки)
+
+
+
+
+
+
 
 import time
 import functools
