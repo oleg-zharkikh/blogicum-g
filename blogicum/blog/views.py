@@ -272,256 +272,32 @@ def custom_logout(request):
 
 
 
+from .tasks import run_rag_process, run_statistical_analysis
+from .tasks_dispatcher import run_task
+def run_celery_task(request):
+    """запуск celery task"""
 
-###############################################################################
-    """
-    Помоги решить следующую задачу.
-Есть приложение на Django (Python).
-В нем обрабатываются документы по определенным маршрутам.
-При этом функция обработки документов отбирает ряд документов (может быть от десятка до 200- максимум 300) и далее поэтапно обрабатывает их.
-На каждом этапе генерируются новые документы.
-В результате прохождения всего цикла обработки у нас накапливаются данные следующего вида:
+    context = dict()
 
-statistic_data = [
-{
-	"stage": "name of stage",
-	"processed_documents": [{'id':'02342234', 'ref': ['02342234', ]}},  {'id':'f456', 'ref': ['02342234', ]}} ... ],
-	"processing_time": 45.455
-	},
-	...
-]
+    task_name = request.GET.get('task_name')
+    print(task_name)
+    if task_name == 'rag':
+        task = run_task.delay(
+            'blog.tasks.run_rag_process',
+            args=['2345'],
+            kwargs={}
+        )
+        # task = run_rag_process.delay('2345')
+        context['task'] = task
+    elif task_name == 'stat':
+        task = run_task.delay(
+            'blog.tasks.run_statistical_analysis',
+            args=['stat', 'test'],
+            kwargs={}
+        )
+        # task = run_rag_process.delay('2345')
+        context['task'] = task
 
-Кроме того есть словарь, который содержит вложенный словарь с полями документа, а ключом является ID документа:
-docs_data = {
-	'id': { 'name': '',
-			'category': '',
-			'color': '',
-			'text': '',
-			'year': '',
-			...
-			}
-}
-
-В списке statistic_data последовательно хранятся сведения об этапе обработки документов в виде словарей.
-В каждом словаре:
-- ключ stage содержит название этапа.
-- ключ processed_documents содержит список обработанных документов. Каждая запись в этом списке - словарь, содержащий ID выходного документа и ref - ссылки на исходный документ (список).
-- ключ processing_time содержит время, которое ушло на выполнение этапа разработки.
-
-Необходимо написать view функцию и необходимые функции обработки данных для решения задачи визуализации на странице всей получившейся схемы обработки документов в виде графа.
-Требования:
-1. Граф должен отрисовываться на странице с применением библиотеки Vis.js
-2. Граф должен быть многоуровневым в виде Hierarchical Layout - Scale-Free-Network
-3. Начиная сверху каждый уровень - это этап обработки документов.
-4. На каждом уровне отображаются документы, которые были подготовлены на данном этапе (id из списка processed_documents).
-5. Ребра графа - это связи между документами (от документа id к документу ref).
-6. Вершины - круглые. label для вершины - id документа. Если category = 'doc' то цвет вершины - белый. Если другое значение то цвет заливки верщины берется из color
-7. при нажатии на вершину справа от графа на странице должна в столбик отобразиться информация о документе: name, category, year (поля не более 100 символов)
-
-Дополнительные пояснения.
-Все ID у документов - строковые значения.
-Один документ может появляться на каком-то уровне (у него ref будет пустой строкой) и проходить через несколько уровней. Из одного документа может быть ветвления на несколько и наоборот (один документ может ссылаться на несколько).
-
-Нужны ли какие-то уточняющие детали или задание понятное и однозначное?
-    """
-import json
-# from django.shortcuts import render
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
+    return render(request, 'blog/graph.html', context=context)
 
 
-def visualize_graph(request):
-    """Основная view для отображения страницы с графом"""
-    return render(request, 'blog/graph.html')
-
-
-@csrf_exempt
-def get_graph_data(request):
-    """API endpoint для получения данных графа в формате Vis.js"""
-    if request.method == 'GET':
-        # Здесь получаем statistic_data и docs_data
-        # В реальном приложении это будет из базы данных или кэша
-        statistic_data = get_statistic_data()  # Ваша функция получения данных
-        docs_data = get_docs_data()           # Ваша функция получения данных
-
-        graph_data = process_graph_data(statistic_data, docs_data)
-        return JsonResponse(graph_data)
-
-    return JsonResponse({'error': 'Invalid method'}, status=400)
-
-
-def process_graph_data(statistic_data, docs_data):
-    """Обработка данных для формирования графа"""
-    nodes = []
-    edges = []
-    level_y_positions = {}
-
-    # Определяем позиции по Y для каждого уровня (этапа)
-    stages = [stage['stage'] for stage in statistic_data]
-    stage_height = 5  # Расстояние между уровнями
-
-    for i, stage in enumerate(stages):
-        level_y_positions[stage] = i * stage_height
-
-    # Обрабатываем каждый этап
-    for stage_idx, stage_data in enumerate(statistic_data):
-        stage_name = stage_data['stage']
-        processed_docs = stage_data['processed_documents']
-
-        # Создаем узлы для документов этого этапа
-        for doc in processed_docs:
-            doc_id = doc['id']
-
-            # Получаем данные документа
-            doc_info = docs_data.get(doc_id, {})
-
-            # Определяем цвет узла
-            color = 'white'
-            if doc_info.get('category') != 'doc':
-                color = doc_info.get('color', '#97C2FC')
-
-            # Создаем узел
-            node = {
-                'id': f"{stage_name}_{doc_id}",
-                'label': doc_id,
-                'group': stage_name,
-                'level': level_y_positions[stage_name],
-                'color': color,
-                'title': f"ID: {doc_id}<br>Stage: {stage_name}",
-                'data': {
-                    'original_id': doc_id,
-                    'stage': stage_name,
-                    'name': doc_info.get('name', ''),
-                    'category': doc_info.get('category', ''),
-                    'year': doc_info.get('year', ''),
-                    'color': doc_info.get('color', ''),
-                    'text': doc_info.get('text', '')[:100] if doc_info.get('text') else ''
-                }
-            }
-            nodes.append(node)
-
-            # Создаем ребра к документам-источникам
-            for ref_doc_id in doc.get('ref', []):
-                if ref_doc_id:  # Пропускаем пустые ссылки
-                    # Ищем узел-источник на предыдущих этапах
-                    for prev_stage_idx in range(stage_idx):
-                        prev_stage = statistic_data[prev_stage_idx]
-                        for prev_doc in prev_stage['processed_documents']:
-                            if prev_doc['id'] == ref_doc_id:
-                                edge = {
-                                    'id': f"{ref_doc_id}_{doc_id}",
-                                    'from': f"{prev_stage['stage']}_{ref_doc_id}",
-                                    'to': f"{stage_name}_{doc_id}",
-                                    'arrows': 'to',
-                                    'color': {'color': '#848484'}
-                                }
-                                edges.append(edge)
-                                break
-
-    return {
-        'nodes': nodes,
-        'edges': edges,
-        'stages': stages
-    }
-
-
-# Заглушки функций (в реальном приложении будут получать данные из БД/кэша)
-def get_statistic_data():
-    """Получение статистических данных обработки"""
-    # Пример данных - в реальном приложении берется из базы
-
-    data =  [
-        {
-            "stage": "init",
-            "processed_documents": [
-                {'id': '8', 'ref': []}, {'id':'13', 'ref': []}, ],
-            "processing_time": 45.455
-	    },
-        {
-            "stage": "search",
-            "processed_documents": [
-                {'id':'801', 'ref': ['8', ]}, {'id':'813', 'ref': ['8', ]}, {'id':'130', 'ref': ['13', ]}],
-            "processing_time": 3.2
-	    },
-        {
-            "stage": "extract_entities",
-            "processed_documents": [
-                {'id':'e1', 'ref': ['801', ]}, {'id':'e2', 'ref': ['801', ]}, {'id':'e3', 'ref': ['130', ]}],
-            "processing_time": 3.2
-	    },
-    ]
-    for i in range(0, 50):
-        data[1]['processed_documents'].append({'id':str(i)+'d', 'ref': ['8']})
-    return data
-
-
-def get_docs_data():
-    """Получение данных документов"""
-    # Пример данных - в реальном приложении берется из базы
-    data = {
-        '8': {
-            'name': 'Cat 8',
-            'category': 'inftype',
-            'color': 'red',
-            'text': 'Patents',
-            'year': '2025',
-        },
-        '13': {
-            'name': 'Cat 13',
-            'category': 'TR',
-            'color': 'yellow',
-            'text': 'tompson',
-            'year': '2025',
-        },
-        '801': {
-            'name': 'd801_',
-            'category': 'doc',
-            'color': 'white',
-            'text': 'first doc',
-            'year': '2022',
-        },
-        '813': {
-            'name': 'd_813',
-            'category': 'doc',
-            'color': 'white',
-            'text': 'second doc from patent',
-            'year': '2023',
-        },
-        '130': {
-            'name': 'd_130',
-            'category': 'doc',
-            'color': 'white',
-            'text': 'doc from TR',
-            'year': '2024',
-        },
-        'e1': {
-            'name': 'ENTITY 1',
-            'category': 'ent',
-            'color': 'grey',
-            'text': 'doc from TR',
-            'year': '2024',
-        },
-        'e2': {
-            'name': 'ENTITY 2',
-            'category': 'ent',
-            'color': 'grey',
-            'text': 'doc from TR',
-            'year': '2024',
-        },
-        'e3': {
-            'name': 'ENTITY d_130',
-            'category': 'ent',
-            'color': 'grey',
-            'text': 'doc from TR',
-            'year': '2024',
-        },
-    }
-    for i in range(0, 50):
-        data[str(i)+'d'] = {
-            'name': f'doc-{i}',
-            'category': 'doc',
-            'color': 'white',
-            'text': 'doc ',
-            'year': '2020',
-        }
-    return data

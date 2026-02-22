@@ -1,0 +1,44 @@
+запущен процесс RAG: user_input_data='2345'
+result='Результат обработки RAG'
+запущен процесс RAG: user_input_data='2345'
+result='Результат обработки RAG'
+stat analisys started ... params: stat - test
+stat analisys has done
+-----------stat analisys started ... params: stat - test
+[16:22:28] RAG process got results:
+[blog.tasks_dispatcher.run_task('get_completion', args=('Запрос к модели А', 'gpt-4', 'http://llm-server-1:8000'), kwargs={}),
+ blog.tasks_dispatcher.run_task('get_completion', args=('Запрос к модели Б', 'gpt-3.5', 'http://llm-server-2:8000'), kwargs={})]
+[16:22:28] RAG process finished
+stat analisys has done
+[16:25:46] RAG process got results:
+[blog.tasks_dispatcher.run_task('get_completion', args=('Запрос к модели А', 'gpt-4', 'http://llm-server-1:8000'), kwargs={}),
+ blog.tasks_dispatcher.run_task('get_completion', args=('Запрос к модели Б', 'gpt-3.5', 'http://llm-server-2:8000'), kwargs={})]
+[16:25:46] RAG process finished
+[16:27:07] RAG process got results:
+[<AsyncResult: 492dfbd7-2257-4f04-9527-ae65c44cfb14>,
+ <AsyncResult: 6fd92397-6d3a-43dc-85bd-56a1f9533bf2>]
+[16:27:07] RAG process finished
+[16:27:07] get_completion started: gpt-4 on http://llm-server-1:8000
+[16:27:07] get_completion started: gpt-3.5 on http://llm-server-2:8000
+[16:28:07] get_completion finished: llm_1771766827_7255
+[16:28:07] get_completion finished: llm_1771766827_6003
+[16:29:34] get_completion started: gpt-4 on http://llm-server-1:8000
+[16:30:34] get_completion finished: llm_1771766974_4247
+[16:30:34] get_completion started: gpt-3.5 on http://llm-server-2:8000
+[16:31:34] get_completion finished: llm_1771767034_7155
+[16:31:34] RAG process got results:
+[{'function': 'get_completion',
+  'result': {'model': 'gpt-4',
+             'prompt': 'Запрос к модели А...',
+             'server': 'http://llm-server-1:8000',
+             'task_id': 'llm_1771766974_4247',
+             'timestamp': 1771767034.9706187},
+  'status': 'success'},
+ {'function': 'get_completion',
+  'result': {'model': 'gpt-3.5',
+             'prompt': 'Запрос к модели Б...',
+             'server': 'http://llm-server-2:8000',
+             'task_id': 'llm_1771767034_7155',
+             'timestamp': 1771767094.9806168},
+  'status': 'success'}]
+[16:31:34] RAG process finished

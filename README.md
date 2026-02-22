@@ -1,4 +1,22 @@
-Ниже — минимальный, но практичный пример novelty detection для текстов на scikit-learn, хорошо подходящий под твой кейс:
+**Celery**
+
+```
+
+celery -A blogicum worker --pool=gevent --concurrency=5 -E --loglevel=info
+
+```
+
+**Flower**
+
+```
+
+celery -A blogicum flower --port=5555 --loglevel=info
+celery -A blogicum flower --basic_auth=admin:password --port=5555 
+```
+
+
+
+Ниже— минимальный, но практичный пример novelty detection для текстов на scikit-learn, хорошо подходящий под твой кейс:
 автор обычно пишет в узкой тематике → внезапно появляется текст “из другой области”.
 Я покажу вариант с TF-IDF + One-Class SVM, а затем кратко поясню альтернативы.
 Идея подхода

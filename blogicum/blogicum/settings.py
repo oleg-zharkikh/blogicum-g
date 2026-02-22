@@ -1,5 +1,11 @@
 from pathlib import Path
 
+import os
+os.environ['CELERY_BROKER_URL'] = 'redis://127.0.0.1:6379/0'
+os.environ['CELERY_RESULT_BACKEND'] = 'redis://127.0.0.1:6379/0'
+# CELERY_RESULT_BACKEND = 'redis://localhost:6379'
+
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = 'django-insecure-v3v&vs=*52xf3kn)2dokh#52my5xtf@8h9(prysmjh22mrs%12'
@@ -120,3 +126,26 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 10
 }
+
+
+# CELERY
+# Принудительно используем чистый Python-транспорт
+CELERY_BROKER_TRANSPORT_OPTIONS = {
+    'fanout_prefix': True,
+    'fanout_patterns': True,
+    'socket_keepalive': True,
+    'socket_timeout': 30,
+    'retry_on_timeout': True,
+}
+# import kombu
+# kombu.transport
+# kombu.transport.redis.Transport.connection_errors = ()  # Это может помочь
+
+# CELERY_BROKER_URL = 'redis://127.0.0.1:6379/0'
+# CELERY_RESULT_BACKEND = 'redis://127.0.0.1:6379/0'
+
+# CELERY_BROKER_URL = 'redis://localhost:6379'
+# CELERY_RESULT_BACKEND = 'redis://localhost:6379'
+
+# CELERY_BROKER_URL = 'redis+socket://127.0.0.1:6379/0'  # или просто 'redis://'
+# CELERY_BROKER_TRANSPORT = 'redis'
