@@ -131,6 +131,7 @@ REST_FRAMEWORK = {
 # CELERY
 # Принудительно используем чистый Python-транспорт
 CELERY_BROKER_TRANSPORT_OPTIONS = {
+    'visibility_timeout': 10800,  # 3 часа в секундах
     'fanout_prefix': True,
     'fanout_patterns': True,
     'socket_keepalive': True,

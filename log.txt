@@ -42,3 +42,23 @@ stat analisys has done
              'timestamp': 1771767094.9806168},
   'status': 'success'}]
 [16:31:34] RAG process finished
+[17:24:25] get_completion started: gpt-4 on http://llm-server-1:8000
+[17:25:25] get_completion finished: llm_1771770265_4558
+[17:25:25] get_completion started: gpt-3.5 on http://llm-server-2:8000
+[17:26:25] get_completion finished: llm_1771770325_807
+[17:26:26] RAG process got results:
+[{'function': 'get_completion',
+  'result': {'model': 'gpt-4',
+             'prompt': 'Запрос к модели А...',
+             'server': 'http://llm-server-1:8000',
+             'task_id': 'llm_1771770265_4558',
+             'timestamp': 1771770325.6733115},
+  'status': 'success'},
+ {'function': 'get_completion',
+  'result': {'model': 'gpt-3.5',
+             'prompt': 'Запрос к модели Б...',
+             'server': 'http://llm-server-2:8000',
+             'task_id': 'llm_1771770325_807',
+             'timestamp': 1771770386.028516},
+  'status': 'success'}]
+[17:26:26] RAG process finished
