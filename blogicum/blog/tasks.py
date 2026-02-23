@@ -1,27 +1,35 @@
 from celery import shared_task, group, chain, chord
 from .tasks_dispatcher import register_task, run_task
-
+import logging
+from redis_semaphore import Semaphore
 import time
 from pprint import pprint
+from redis import Redis
+
+
+logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+semaphore = Semaphore(Redis(), count=1, namespace='llm')
 
 # @shared_task
 @register_task('run_rag_process')
-def run_rag_process(user_input_data):
+def run_rag_process(pid):
 
-    results = []
+    logging.info(f"[{pid}]: RAG started")
+    namespace, pid = pid.split('-')
+
+    for i in range(100000):
+        params = ("Запрос к модели", namespace+str(int(pid) + i + 1))
+        result = run_task('get_completion', args=params, kwargs={})
+
+    logging.info(f"[{pid}]: RAG finished")
+
+    # tasks_params = [
+    #     # (prompt, model, server_url)
+    #     ("Запрос к модели А", "gpt-4", "http://llm-server-1:8000"),
+    #     ("Запрос к модели Б", "gpt-3.5", "http://llm-server-2:8000"),
+    # ]
 
 
-
-    tasks_params = [
-        # (prompt, model, server_url)
-        ("Запрос к модели А", "gpt-4", "http://llm-server-1:8000"),
-        ("Запрос к модели Б", "gpt-3.5", "http://llm-server-2:8000"),
-    ]
-
-    result = run_task('get_completion', args=tasks_params[0], kwargs={})
-    results.append(result)
-    result = run_task('get_completion', args=tasks_params[1], kwargs={})
-    results.append(result)
 
     # # Создаем группу задач
     # task_group = group(
@@ -35,21 +43,21 @@ def run_rag_process(user_input_data):
     # # Ждем завершения всех задач в группе
     # # timeout=None - ждать бесконечно, interval - как часто проверять
     # results = result_group.get(timeout=None, interval=1)
-    
+
     # Обрабатываем результаты
-    with open("D:/Dev/blogicum-g/log.txt", "a") as f:
-        f.write(f'[{time.strftime("%H:%M:%S")}] RAG process got results:\n')
-        pprint(results, f)
-        
+    # with open("D:/Dev/blogicum-g/log.txt", "a") as f:
+    #     f.write(f'[{time.strftime("%H:%M:%S")}] RAG process got results:\n')
+    #     pprint(results, f)
+   
     # Здесь можно сохранить результаты в БД
     final_result = {
         'status': 'completed',
-        'llm_results': results,
+        # 'llm_results': results,
         'timestamp': time.time()
     }
 
-    with open("D:/Dev/blogicum-g/log.txt", "a") as f:
-        f.write(f'[{time.strftime("%H:%M:%S")}] RAG process finished\n')
+    # with open("D:/Dev/blogicum-g/log.txt", "a") as f:
+    #     f.write(f'[{time.strftime("%H:%M:%S")}] RAG process finished\n')
 
     return final_result
 
@@ -62,8 +70,6 @@ def run_rag_process(user_input_data):
     #     f.write(f'{result=}\n')
     # return result
 
-# stats/tasks.py
-# from celery import shared_task
 
 # @shared_task
 @register_task('run_statistical_analysis')
@@ -78,23 +84,19 @@ def run_statistical_analysis(data1, data2):
 
 
 @register_task('get_completion')
-def get_completion(prompt, model, server_url):
+def get_completion(prompt, id):
     """Заглушка для запроса к LLM
 
     Имитирует долгий запрос (60 секунд) и возвращает уникальный ID.
+    Работа с семафором.
     """
-    task_id = f"llm_{int(time.time())}_{hash(prompt) % 10000}"
-
-    with open("D:/Dev/blogicum-g/log.txt", "a") as f:
-        f.write(f'[{time.strftime("%H:%M:%S")}] get_completion started: {model} on {server_url}\n')
-    time.sleep(60)
-    with open("D:/Dev/blogicum-g/log.txt", "a") as f:
-        f.write(f'[{time.strftime("%H:%M:%S")}] get_completion finished: {task_id}\n')
+    logging.info(f"[{id}]: waiting...")
+    with semaphore:
+        logging.info(f"[{id}]: start")
+        time.sleep(1)
+        logging.info(f"[{id}]: done")
     return {
-        'task_id': task_id,
-        'prompt': prompt[:30] + '...',
-        'model': model,
-        'server': server_url,
+        'id': id,
         'timestamp': time.time()
     }
 

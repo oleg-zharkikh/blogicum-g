@@ -280,11 +280,13 @@ def run_celery_task(request):
     context = dict()
 
     task_name = request.GET.get('task_name')
-    print(task_name)
+    pid = request.GET.get('pid')
+
+    print(task_name, pid)
     if task_name == 'rag':
         task = run_task.delay(
             'blog.tasks.run_rag_process',
-            args=['2345'],
+            args=[pid],
             kwargs={}
         )
         # task = run_rag_process.delay('2345')
