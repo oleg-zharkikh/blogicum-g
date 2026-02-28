@@ -272,34 +272,56 @@ def custom_logout(request):
 
 
 
-from .tasks import run_rag_process, run_statistical_analysis
-from .tasks_dispatcher import run_task
+from .tasks import run_rag_process
+from datetime import datetime
+import time
+
 def run_celery_task(request):
     """запуск celery task"""
 
     context = dict()
+    current_timestamp = time.time()
+    print(int(current_timestamp))
 
-    task_name = request.GET.get('task_name')
-    pid = request.GET.get('pid')
-
-    print(task_name, pid)
-    if task_name == 'rag':
-        task = run_task.delay(
-            'blog.tasks.run_rag_process',
-            args=[pid],
-            kwargs={}
-        )
-        # task = run_rag_process.delay('2345')
-        context['task'] = task
-    elif task_name == 'stat':
-        task = run_task.delay(
-            'blog.tasks.run_statistical_analysis',
-            args=['stat', 'test'],
-            kwargs={}
-        )
-        # task = run_rag_process.delay('2345')
-        context['task'] = task
+    task = run_rag_process.delay(current_timestamp)
+    context['task'] = task
 
     return render(request, 'blog/graph.html', context=context)
+
+
+# проверка состояния задачи и возврат результата
+from celery.result import AsyncResult
+
+
+def get_task_result(task_id):
+    task_result = AsyncResult(task_id)
+    
+    if task_result.ready():
+        if task_result.successful():
+            result = task_result.get()
+            print(f"Task completed successfully: {result}")
+            return result
+        else:
+            error = task_result.result
+            print(f"Task failed: {error}")
+            raise error
+    else:
+        print(f"Task state: {task_result.state}")
+        print(f"Task info: {task_result.info}")
+        return None
+# 
+
+from django.http import JsonResponse
+from django.views.decorators.http import require_http_methods
+
+def get_task_status(request, task_id):
+    result = get_task_result(task_id)
+    
+    response = {
+        'task_id': task_id,
+        'result': result
+    }
+        
+    return JsonResponse(response)
 
 

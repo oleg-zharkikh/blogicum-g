@@ -11,7 +11,9 @@ urlpatterns = [
 
     path('list/', views.get_list),
 
-    path('task/', views.run_celery_task, name='visualize_graph'),
+    path('task/', views.run_celery_task, name='new_task'),
+    path('task/<slug:task_id>/', views.get_task_status, name='check_status'),
+
 
     path('posts/<int:post_id>/',
          views.post_detail,
